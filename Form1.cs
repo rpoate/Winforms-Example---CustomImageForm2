@@ -1,8 +1,10 @@
 ﻿
 using System;
 using System.Collections.Generic;
+using System.Data.SqlTypes;
 using System.IO;
 using System.Net.Mail;
+using System.Net.Mime;
 using System.Text;
 using System.Windows.Forms;
 using Zoople;
@@ -23,7 +25,7 @@ namespace Winforms_Example_11___Email_Message
                 Dock = DockStyle.Fill,
                 DocumentHTML = "<img align='right' src='images/anna2.jpg' width='200px'/><h2>Saving as an Email with inline images.</h2><p>This example shows how to save an eml file containing inline (embedded) images</p>",
                 ShowPropertyGrid = false,
-                CSSText = "BODY {font-family: Arial Unicode MS, Arial, Sans-Serif;}",
+                CSSText = "BODY {font-family: times new roman;}",
                 LicenceKey = "YourLicenseKey",
                 LicenceKeyInlineSpelling = "YourInlineSpellingLicenseKey",
                 EnableInlineSpelling = true,
@@ -47,7 +49,7 @@ namespace Winforms_Example_11___Email_Message
             oEdit.DocumentLoadComplete += OEdit_DocumentLoadComplete;
 
             oEdit.CommandsToolbarButtonClicked += OEdit_CommandsToolbarButtonClicked;
-            oEdit.CancellableUserInteraction += OEdit_CancellableUserInteraction; ;
+            oEdit.CancellableUserInteraction += OEdit_CancellableUserInteraction;
         }
 
         private void OEdit_CancellableUserInteraction(object sender, CancellableUserInteractionEventsArgs e)
@@ -128,7 +130,7 @@ namespace Winforms_Example_11___Email_Message
                         else
                             ((dynamic)oEdit.CurrentElement).RemoveAttribute("alt");
 
-                        if (oImgF.txtBorder.Text != "") 
+                        if (oImgF.txtBorder.Text != "")
                             oEdit.CurrentWindowsFormsElement.SetAttribute("border", oImgF.txtBorder.Text);
                         else
                             ((dynamic)oEdit.CurrentElement).RemoveAttribute("border");
@@ -151,7 +153,7 @@ namespace Winforms_Example_11___Email_Message
                         oImg.SetAttribute("src", oImgF.txtSource.Text);
                         if (oImgF.txtAltText.Text != "") oEdit.CurrentWindowsFormsElement.SetAttribute("alt", oImgF.txtAltText.Text);
                         if (oImgF.txtBorder.Text != "") oEdit.CurrentWindowsFormsElement.SetAttribute("border", oImgF.txtBorder.Text);
-                        if (oImgF.txtWidth.Text != "")  oEdit.CurrentWindowsFormsElement.SetAttribute("width", oImgF.txtWidth.Text);
+                        if (oImgF.txtWidth.Text != "") oEdit.CurrentWindowsFormsElement.SetAttribute("width", oImgF.txtWidth.Text);
                         if (oImgF.txtHeight.Text != "") oEdit.CurrentWindowsFormsElement.SetAttribute("height", oImgF.txtHeight.Text);
                     }
                 }
@@ -177,7 +179,8 @@ namespace Winforms_Example_11___Email_Message
         private void AsEmail_Click(object sender, EventArgs e)
         {
 
-            string EditorHTML = oEdit.DocumentHTML;
+            // string EditorHTML = oEdit.DocumentHTML;
+            HtmlDocument oDoc = oEdit.DocumentClone;
 
             MailMessage newMail = new MailMessage();
             newMail.To.Add(new MailAddress("you@your.address"));
@@ -185,32 +188,31 @@ namespace Winforms_Example_11___Email_Message
             newMail.Subject = "Test Subject";
             newMail.IsBodyHtml = true;
 
-            List<LinkedResource> inlineLogoList = new List<LinkedResource>();
+            //List<LinkedResource> inlineLogoList = new List<LinkedResource>();
+            var attachments = newMail.Attachments;
 
-            foreach (HtmlElement oImage in oEdit.GetItemsByTagName("img"))
+            foreach (HtmlElement oImage in oDoc.GetElementsByTagName("img"))
             {
                 Uri oUri = new Uri(oImage.GetAttribute("src"));
                 if (oUri.IsFile)
                 {
-                    var inlineLogo = new LinkedResource(oUri.LocalPath, "image/" + new FileInfo(oUri.LocalPath).Extension.Substring(1))
+                    var inlineLogo = new Attachment(oUri.LocalPath, "image/" + new FileInfo(oUri.LocalPath).Extension.Substring(1))
                     {
-                        ContentId = Guid.NewGuid().ToString()
+                        ContentId = Guid.NewGuid().ToString(),
                     };
+
+                    inlineLogo.ContentDisposition.DispositionType = DispositionTypeNames.Inline;
+
                     oImage.SetAttribute("src", "cid:" + inlineLogo.ContentId);
-                    inlineLogoList.Add(inlineLogo);
+                    attachments.Add(inlineLogo);
                 }
             }
 
-            var view = AlternateView.CreateAlternateViewFromString(oEdit.Document.Body.OuterHtml, null, "text/html");
-
-            foreach (LinkedResource inlineLogo in inlineLogoList)
-            {
-                view.LinkedResources.Add(inlineLogo);
-            }
+            var view = AlternateView.CreateAlternateViewFromString(oDoc.GetElementsByTagName("html")[0].OuterHtml, null, "text/html");
 
             newMail.AlternateViews.Add(view);
 
-            var view2 = AlternateView.CreateAlternateViewFromString(oEdit.Document.Body.InnerText, Encoding.ASCII, "text/plain");
+            var view2 = AlternateView.CreateAlternateViewFromString(oDoc.GetElementsByTagName("body")[0].InnerText, Encoding.ASCII, "text/plain");
             newMail.AlternateViews.Add(view2);
 
             SmtpClient client = new SmtpClient("mysmtphost")
@@ -220,7 +222,7 @@ namespace Winforms_Example_11___Email_Message
             };
             client.Send(newMail);
 
-            oEdit.DocumentHTML = EditorHTML;
+            // oEdit.DocumentHTML = EditorHTML;
 
             MessageBox.Show("Successfully saved to \r\n\r\n " + Application.StartupPath + "/SMTPPickupFolder");
 
